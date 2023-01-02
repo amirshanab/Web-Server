@@ -36,9 +36,9 @@ char *get_mime_type(char *name)
 }
 
 
-int fun(void* x)
+int fun(void* data)
 {
-    int fd=*(int*)x;
+    int fd=*(int*)data;
     int isError=0;
     int isFile=0;
     int status=0;
