@@ -14,8 +14,24 @@
 
 #define RFC1123FMT "%a, %d %b %Y %H:%M:%S GMT"
 
+int isError;
+int isFile;
+int status;
+char* phrase;
+char* path;
+char* method;
+char* protocol;
+unsigned char* body;
+char* type;
+int size;
+int isContent;
+int file;
+struct stat ftemp;
+struct stat fs;
+struct dirent* dentry;
 
-//typedef struct http_response http_response;
+
+void handler(DIR* dir, char *timebuf);
 
 char *get_mime_type(char *name)
 {
@@ -39,17 +55,17 @@ char *get_mime_type(char *name)
 int fun(void* data)
 {
     int fd=*(int*)data;
-    int isError=0;
-    int isFile=0;
-    int status=0;
-    char* phrase=NULL;
-    char* path=NULL;
-    char* method=NULL;
-    char* protocol=NULL;
-    unsigned char* body=NULL;
-    char* type=NULL;
-    int size=0;
-    int isContent=0;
+    isError=0;
+    isFile=0;
+    status=0;
+    phrase=NULL;
+    path=NULL;
+    method=NULL;
+    protocol=NULL;
+    body=NULL;
+    type=NULL;
+    size=0;
+    isContent=0;
 
     time_t now;
     char timebuf[128];
@@ -64,7 +80,7 @@ int fun(void* data)
         body=(unsigned char*)"Some server side error.";
         type="text/html";
     }
-    int rc=0;
+    int rc;
     char request[4000]={0};
     rc=read(fd,request,4000);
     // in case read failed
@@ -119,196 +135,11 @@ int fun(void* data)
         type="text/html";
     }
     // files
-    struct stat ftemp;
-    struct stat fs;
-    int file=0;
-    struct dirent* dentry;
-    DIR* dir;
+    file=0;
+    DIR *dir = NULL;
 
     if(isError==0){
-
-        char full_path[256]={0};
-        full_path[0]='.';
-        strcat(full_path,path);
-
-        // only for dir content
-        char full_path2[256]={0};
-        full_path2[0]='.';
-        strcat(full_path2,path);
-
-        dir=opendir(full_path);
-
-        // in case path is not directory or no permissions
-        if(dir==NULL){
-
-            char* temp = (char*)calloc(sizeof(full_path),sizeof(char));
-            int i = 0;
-
-            while(i < strlen(full_path))
-            {
-                while(full_path[i] != '/' && i < strlen(full_path))
-                {
-                    temp[i] = full_path[i];
-                    i++;
-                }
-
-                if(stat(temp,&ftemp) < 0)
-                {
-                    isError=1;
-                    status=404;
-                    phrase="Not Found";
-                    body=(unsigned char*)"File not found.";
-                    type="text/html";
-                    break;
-                }
-
-                if(S_ISREG(ftemp.st_mode))
-                {
-                    if((ftemp.st_mode & S_IROTH) && (ftemp.st_mode & S_IRGRP) && (ftemp.st_mode & S_IRUSR)){}
-                    else
-                    {
-                        isError=1;
-                        status=403;
-                        phrase="Forbidden";
-                        body=(unsigned char*)"Access denied.";
-                        type="text/html";
-                        break;
-                    }
-                }
-                else if(S_ISDIR(ftemp.st_mode))
-                {
-                    if(ftemp.st_mode & S_IXOTH ){}
-                    else
-                    {
-                        isError=1;
-                        status=403;
-                        phrase="Forbidden";
-                        body=(unsigned char*)"Access denied.";
-                        type="text/html";
-                        break;
-                    }
-                }
-
-                temp[i]='/';
-                i++;
-            }
-
-            free(temp);
-
-            // return file
-            if(status==0)
-            {
-                file=open(full_path,O_RDONLY);
-                stat(full_path,&fs);
-                isFile=1;
-                status=200;
-                phrase="OK";
-                type=get_mime_type(path);
-                size=(int)fs.st_size;
-                body=(unsigned char*)calloc(size+1,sizeof(unsigned char));
-                read(file,body,size);
-            }
-
-        }
-
-            // directory found
-        else
-        {
-            // 302 ERROR
-            if(path[strlen(path)-1]!='/')
-            {
-                isError=1;
-                status=302;
-                phrase="Found";
-                body=(unsigned char*)"Directories must end with a slash.";
-                type="text/html";
-                closedir(dir);
-            }
-
-                // directory found
-            else
-            {
-                // index.html file
-                strcat(full_path,"index.html");
-                file=open(full_path,O_RDONLY);
-                if(file>0)
-                {
-                    stat(full_path,&fs);
-                    status=200;
-                    phrase="OK";
-                    type="text/html";
-                    isFile=1;
-                    size=(int)fs.st_size;
-                    body=(unsigned char*)calloc(size+1,sizeof(unsigned char));
-                    read(file,body,size);
-                    closedir(dir);
-                }
-
-                    // no index.html, return contents of the directory
-                else
-                {
-                    stat(full_path2,&fs);
-                    status=200;
-                    phrase="OK";
-                    type="text/html";
-                    isFile=1;
-                    isContent=1;
-
-                    while((dentry=readdir(dir))!=NULL)
-                    {
-                        size+=500;
-                    }
-                    closedir(dir);
-                    body=(unsigned char*)calloc((size+1+512),sizeof(unsigned char));
-
-                    strcat(body,"<HTML>\r\n<HEAD><TITLE>Index of ");
-                    strcat(body,full_path2);
-                    strcat(body,"</TITLE></HEAD>\r\n\r\n<BODY>\r\n<H4>Index of ");
-                    strcat(body,full_path2);
-                    strcat(body,"</H4>\r\n\r\n<table CELLSPACING=8>\r\n<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>\r\n");
-
-                    dir=opendir(full_path2);
-
-                    while((dentry=readdir(dir))!=NULL)
-                    {
-
-                        char* temp_path=(char*)calloc(strlen(full_path2)+1+strlen(dentry->d_name),sizeof(char));
-                        strcat(temp_path,full_path2);
-                        strcat(temp_path,dentry->d_name);
-
-                        stat(temp_path,&ftemp);
-                        strcat(body,"<tr>\r\n<td><A HREF=");
-                        strcat(body,dentry->d_name);
-                        strcat(body,">");
-                        strcat(body,dentry->d_name);
-                        strcat(body,"</A></td><td>");
-                        strftime(timebuf, sizeof(timebuf), RFC1123FMT, localtime(&ftemp.st_mtime));
-                        strcat(body,timebuf);
-                        strcat(body,"</td>\r\n<td>");
-
-                        if(!S_ISDIR(ftemp.st_mode))
-                        {
-                            int t=(int)ftemp.st_size;
-                            sprintf(timebuf,"%d",t);
-                            strcat(body,timebuf);
-                        }
-
-                        strcat(body,"</td>\r\n</tr>");
-
-                        free(temp_path);
-                    }
-
-                    strcat(body,"\r\n\r\n</table>\r\n\r\n<HR>\r\n\r\n<ADDRESS>webserver/1.0</ADDRESS>\r\n\r\n</BODY></HTML>\r\n");
-                    closedir(dir);
-
-                }
-
-            }
-
-
-        }
-
-
+        handler(dir,timebuf);
     }
 
     char status_response[256]={0};
@@ -386,6 +217,193 @@ int fun(void* data)
     }
 
     close(fd);
+}
+
+
+void handler(DIR* dir,char *timebuf){ // path and dir
+    char full_path[256]={0};
+    full_path[0]='.';
+    strcat(full_path,path);
+
+    // only for dir content
+    char full_path2[256]={0};
+    full_path2[0]='.';
+    strcat(full_path2,path);
+
+    dir=opendir(full_path);
+
+    // in case path is not directory or no permissions
+    if(dir==NULL){
+
+        char* temp = (char*)calloc(sizeof(full_path),sizeof(char));
+        int i = 0;
+
+        while(i < strlen(full_path))
+        {
+            while(full_path[i] != '/' && i < strlen(full_path))
+            {
+                temp[i] = full_path[i];
+                i++;
+            }
+
+            if(stat(temp,&ftemp) < 0)
+            {
+                isError=1;
+                status=404;
+                phrase="Not Found";
+                body=(unsigned char*)"File not found.";
+                type="text/html";
+                break;
+            }
+
+            if(S_ISREG(ftemp.st_mode))
+            {
+                if((ftemp.st_mode & S_IROTH) && (ftemp.st_mode & S_IRGRP) && (ftemp.st_mode & S_IRUSR)){}
+                else
+                {
+                    isError=1;
+                    status=403;
+                    phrase="Forbidden";
+                    body=(unsigned char*)"Access denied.";
+                    type="text/html";
+                    break;
+                }
+            }
+            else if(S_ISDIR(ftemp.st_mode))
+            {
+                if(ftemp.st_mode & S_IXOTH ){}
+                else
+                {
+                    isError=1;
+                    status=403;
+                    phrase="Forbidden";
+                    body=(unsigned char*)"Access denied.";
+                    type="text/html";
+                    break;
+                }
+            }
+
+            temp[i]='/';
+            i++;
+        }
+
+        free(temp);
+
+        // return file
+        if(status==0)
+        {
+            file=open(full_path,O_RDONLY);
+            stat(full_path,&fs);
+            isFile=1;
+            status=200;
+            phrase="OK";
+            type=get_mime_type(path);
+            size=(int)fs.st_size;
+            body=(unsigned char*)calloc(size+1,sizeof(unsigned char));
+            read(file,body,size);
+        }
+
+    }
+
+        // directory found
+    else
+    {
+        // 302 ERROR
+        if(path[strlen(path)-1]!='/')
+        {
+            isError=1;
+            status=302;
+            phrase="Found";
+            body=(unsigned char*)"Directories must end with a slash.";
+            type="text/html";
+            closedir(dir);
+        }
+
+            // directory found
+        else
+        {
+            // index.html file
+            strcat(full_path,"index.html");
+            file=open(full_path,O_RDONLY);
+            if(file>0)
+            {
+                stat(full_path,&fs);
+                status=200;
+                phrase="OK";
+                type="text/html";
+                isFile=1;
+                size=(int)fs.st_size;
+                body=(unsigned char*)calloc(size+1,sizeof(unsigned char));
+                read(file,body,size);
+                closedir(dir);
+            }
+
+                // no index.html, return contents of the directory
+            else
+            {
+                stat(full_path2,&fs);
+                status=200;
+                phrase="OK";
+                type="text/html";
+                isFile=1;
+                isContent=1;
+
+                while((dentry=readdir(dir))!=NULL)
+                {
+                    size+=500;
+                }
+                closedir(dir);
+                body=(unsigned char*)calloc((size+1+512),sizeof(unsigned char));
+
+                strcat(body,"<HTML>\r\n<HEAD><TITLE>Index of ");
+                strcat(body,full_path2);
+                strcat(body,"</TITLE></HEAD>\r\n\r\n<BODY>\r\n<H4>Index of ");
+                strcat(body,full_path2);
+                strcat(body,"</H4>\r\n\r\n<table CELLSPACING=8>\r\n<tr><th>Name</th><th>Last Modified</th><th>Size</th></tr>\r\n");
+
+                dir=opendir(full_path2);
+
+                while((dentry=readdir(dir))!=NULL)
+                {
+
+                    char* temp_path=(char*)calloc(strlen(full_path2)+1+strlen(dentry->d_name),sizeof(char));
+                    strcat(temp_path,full_path2);
+                    strcat(temp_path,dentry->d_name);
+
+                    stat(temp_path,&ftemp);
+                    strcat(body,"<tr>\r\n<td><A HREF=");
+                    strcat(body,dentry->d_name);
+                    strcat(body,">");
+                    strcat(body,dentry->d_name);
+                    strcat(body,"</A></td><td>");
+                    strftime(timebuf, sizeof(timebuf), RFC1123FMT, localtime(&ftemp.st_mtime));
+                    strcat(body,timebuf);
+                    strcat(body,"</td>\r\n<td>");
+
+                    if(!S_ISDIR(ftemp.st_mode))
+                    {
+                        int t=(int)ftemp.st_size;
+                        sprintf(timebuf,"%d",t);
+                        strcat(body,timebuf);
+                    }
+
+                    strcat(body,"</td>\r\n</tr>");
+
+                    free(temp_path);
+                }
+
+                strcat(body,"\r\n\r\n</table>\r\n\r\n<HR>\r\n\r\n<ADDRESS>webserver/1.0</ADDRESS>\r\n\r\n</BODY></HTML>\r\n");
+                closedir(dir);
+
+            }
+
+        }
+
+    }
+
+
+
+
 }
 
 int main(int argc,char* argv[]){
