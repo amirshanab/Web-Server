@@ -213,6 +213,7 @@ int fun(void* data)
 
     if(isFile==1){
         write(fd,body,size);
+        if(body!=NULL)
         free(body);
     }
 
@@ -234,8 +235,8 @@ void handler(DIR* dir,char *timebuf){ // path and dir
 
     // in case path is not directory or no permissions
     if(dir==NULL){
-
-        char* temp = (char*)calloc(sizeof(full_path),sizeof(char));
+        char* temp = NULL;
+        temp = (char*)calloc(sizeof(full_path),sizeof(char));
         int i = 0;
 
         while(i < strlen(full_path))
@@ -286,7 +287,7 @@ void handler(DIR* dir,char *timebuf){ // path and dir
             temp[i]='/';
             i++;
         }
-
+        if(temp!=NULL)
         free(temp);
 
         // return file
@@ -388,7 +389,7 @@ void handler(DIR* dir,char *timebuf){ // path and dir
                     }
 
                     strcat(body,"</td>\r\n</tr>");
-
+                    if(temp_path!=NULL)
                     free(temp_path);
                 }
 
@@ -442,6 +443,7 @@ int main(int argc,char* argv[]){
 
     threadpool* pool=create_threadpool(atoi(argv[2]));
     if(pool==NULL){
+        if(requests!=NULL)
         free(requests);
         exit(EXIT_FAILURE);
     }
@@ -457,6 +459,7 @@ int main(int argc,char* argv[]){
 
     close(sockfd);
     destroy_threadpool(pool);
+    if(requests!=NULL)
     free(requests);
 
     return EXIT_SUCCESS;
