@@ -68,7 +68,7 @@ int fun(void* data)
     isContent=0;
 
     time_t now;
-    char timebuf[128];
+    char timebuf[128]={0};
     now = time(NULL);
 
     // in case accept failed in main failed
@@ -354,7 +354,8 @@ void handler(DIR* dir,char *timebuf){ // path and dir
                     size+=500;
                 }
                 closedir(dir);
-                body=(unsigned char*)calloc((size+1+512),sizeof(unsigned char));
+                body=NULL;
+                body =  (unsigned char*)calloc((size+1+512),sizeof(unsigned char));
 
                 strcat(body,"<HTML>\r\n<HEAD><TITLE>Index of ");
                 strcat(body,full_path2);
