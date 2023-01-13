@@ -1,0 +1,18 @@
+Web Server
+This is a simple web server program written in C. The server uses a thread pool to handle incoming requests in parallel, and it uses the socket API to read incoming requests and send responses to clients.
+
+Features
+Handles multiple incoming requests in parallel using a thread pool
+Parses incoming requests to extract the method, path, and protocol
+Checks for errors in the request, such as a missing method, path, or protocol
+If the request is valid, the program checks the file type and sends the file to the client if it exists
+If the file does not exist, the program sends an error message to the client
+Usage
+To run the server, compile the program using a C compiler and then run the executable file. The server will listen on the specified port for incoming requests.
+
+Note
+It is important to note that this is a basic implementation of a web server and it does not include all the features that a production-ready server would have, such as handling multiple file types, security features, and handling large number of requests.
+
+Dependencies
+This program depends on stdio.h, stdlib.h, string.h, unistd.h, sys/socket.h, netinet/in.h, sys/stat.h, dirent.h, and fcntl.h libraries.
+
